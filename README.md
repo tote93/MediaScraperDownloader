@@ -2,15 +2,16 @@
 Python script which download all img and videos from websites as VK, Hispachan and 4chan
 The program separate photo and video by directories, the user must introduce name of directory to create.
 
-#How to use
+# How to use
 Execute: python ./downloader.py URL
 
-#What website are avaiable?
-1. Hispachan Forum
-2. 4chan Forum
-3. VK website
-
-#What I can download?
+# What website are avaiable?
+                
+* Hispachan Forum
+* 4chan Forum
+* VK website
+                
+# What I can download?
 + Hispachan
     * Download all images
     * Download all videos
