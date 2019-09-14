@@ -31,3 +31,11 @@ Added graphic interface which is easier than command line.
     * Example link: https://vk.com/videos-18098621
     
 - [X] Added VK downloader Photo Albums
+# Compatible Formats:
+    * Image: png, jpg, jpeg, gif, .bmp
+    * Video: mp4, avi, mkv, flv, webm
+# Libraries
+    * WxPython
+    * request
+    * Urllib2
+    * BeautifulSoup
