@@ -35,11 +35,12 @@ listVideos = ['.mp4', '.avi', '.mkv', '.flv', 'webm']
 
 regex = re.compile(
         r'^(?:http|ftp)s?://' # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain
-        r'localhost|' #localhost
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # or ip
-        r'(?::\d+)?' # port
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain...
+        r'localhost|' #localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
+        r'(?::\d+)?' # optional port
         r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
 ###########################################################################
 ## Class MainFrame
 ###########################################################################
@@ -121,125 +122,158 @@ class MainFrame ( wx.Frame ):
             if self.checkUrl(url):
                 self.txtResponse.SetForegroundColour( wx.Colour( 34,139,34 ) ) 
                 self.txtResponse.SetValue(str('Downloading media...')) 
-                directory = self.createDialog()                                  
+                directory, evento = self.createDialog()                                  
+                if evento == "close":
+                    self.txtResponse.SetValue(str('Must introduce a folder name.')) 
+                    pass
+                else:
+                    # Create directory structure photo and video
+                    if not os.path.exists(directory):
+                        os.makedirs(directory)
+                        os.makedirs("./" + directory + "/photos")
+                        os.makedirs("./" + directory + "/videos")                       
+                    if url.find('hispachan') != -1:                                        
+                        req = urllib2.Request(url, headers=choice(user_agents))
+                        page = urllib2.urlopen(req)
+                        soup = BeautifulSoup(page.read(), 'html.parser')                       
+                        linkers = soup.findAll('a', attrs={'href': re.compile("^https://www.hispachan.org/")})
 
-                # User inserted a hispachan url                
-                if url.find('hispachan') != -1:                                        
-                    req = urllib2.Request(url, headers=choice(user_agents))
-                    page = urllib2.urlopen(req)
-                    soup = BeautifulSoup(page.read(), 'html.parser')                       
-                    linkers = soup.findAll('a', attrs={'href': re.compile("^https://www.hispachan.org/")})
-
-                    for link in list(set(linkers)):
-                        ext = os.path.splitext((link.get('href')))[-1].lower()
-                        if ext in listImages:
-                            with open(os.path.join("./" + directory + "/photos/", os.path.basename(link.get('href'))),
-                                        'wb') as f:
-                                response = requests.get(link.get('href'))
-                                f.write(response.content)     
-                                cont_file+=1                       
-                        else:
-                            if ext in listVideos:
-                                with open(os.path.join("./" + directory + "/videos/", os.path.basename(link.get('href'))),
+                        for link in list(set(linkers)):
+                            ext = os.path.splitext((link.get('href')))[-1].lower()
+                            if ext in listImages:
+                                with open(os.path.join("./" + directory + "/photos/", os.path.basename(link.get('href'))),
                                             'wb') as f:
                                     response = requests.get(link.get('href'))
-                                    f.write(response.content)
-                                    cont_file+=1
+                                    f.write(response.content)     
+                                    cont_file+=1                       
+                            else:
+                                if ext in listVideos:
+                                    with open(os.path.join("./" + directory + "/videos/", os.path.basename(link.get('href'))),
+                                                'wb') as f:
+                                        response = requests.get(link.get('href'))
+                                        f.write(response.content)
+                                        cont_file+=1
 
-                # User inserted a 4chan url                            
-                elif url.find('4chan') != -1 or url.find('4channel') != -1:
-                    req = urllib2.Request(url, headers=choice(user_agents))
-                    page = urllib2.urlopen(req)
-                    soup = BeautifulSoup(page.read(), 'html.parser')
+                    # User inserted a 4chan url                            
+                    elif url.find('4chan') != -1 or url.find('4channel') != -1:
+                        req = urllib2.Request(url, headers=choice(user_agents))
+                        page = urllib2.urlopen(req)
+                        soup = BeautifulSoup(page.read(), 'html.parser')
 
-                    linkers = soup.findAll('a', attrs={'href': re.compile("^//is2.4chan.org/")})
-                    string = "Extracting all files into " + directory + " directory."
-                    self.txtResponse.SetForegroundColour( wx.Colour( 255, 0, 0 ) )
-                    self.txtResponse.SetValue(string)   
-
-                    for link in list(set(linkers)):
-                        ext = os.path.splitext((link.get('href')))[-1].lower()
-                        if ext in listImages:
-                            with open(os.path.join("./" + directory + "/photos/", os.path.basename(link.get('href'))),
-                                        'wb') as f:
-                                response = requests.get("http:"+link.get('href'))
-                                f.write(response.content)                                
-                                cont_file+=1
-                        else:
-                            if ext in listVideos:
-                                with open(os.path.join("./" + directory + "/videos/", os.path.basename(link.get('href'))),
-                                            'wb') as f:
-                                    response = requests.get("http:" + link.get('href'))
-                                    f.write(response.content)
-                                    cont_file+=1
-                
-                # User inserted a VK URL                   
-                elif url.find('vk') != -1:
-                    try:                        
-                        with open('preferences.json') as json_file:
-                            data = json.load(json_file)
-                            for p in data['VkLogin']:
-                                username = p['user']
-                                password = p['pass']
-                    except:
-                        msg = 'Insert your VK Username\n'
-                        dlg = wx.TextEntryDialog(self, msg, 'VK Login')
-                        dlg.CentreOnParent()                
-                        if dlg.ShowModal() == wx.ID_OK:  
-                            username = dlg.GetValue()                       
-                        else:                    
-                            return 0     
-                        dlg.Destroy()   
-
-                        msg = 'Insert your VK Password\n'
-                        dlg = wx.TextEntryDialog(self, msg, 'VK Password')
-                        dlg.CentreOnParent()                
-                        if dlg.ShowModal() == wx.ID_OK:  
-                            password = dlg.GetValue()                       
-                        else:                    
-                            return 0     
-                        dlg.Destroy()    
-                        data = {}
-                        data['VkLogin'] = []
-                        data['VkLogin'].append({
-                            'user': username,
-                            'pass': password
-                        })
-                        with open('preferences.json', 'w') as outFile:
-                            json.dump(data, outFile)
-                    headers = {"Referer": "https://m.vk.com/login?role=fast&to=&s=1&m=1&email="+username
-                        , 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:50.0) Gecko/20100101 Firefox/50.0'}
-                    # Change email-username and password by your user in VK website
-                    payload = {'email': username, 'pass': password}
-                    # VK LOGIN COULD BE NECESARY IN CASE THE ACCOUNT BE PRIVATE
-                    if payload['email'] == 'EMAIL' or payload['pass'] == 'PASSWORD':
-                        string = "Error: Payload Parameters not configured in VK"
+                        linkers = soup.findAll('a', attrs={'href': re.compile("^//is2.4chan.org/")})
+                        string = "Extracting all files into " + directory + " directory."
                         self.txtResponse.SetForegroundColour( wx.Colour( 255, 0, 0 ) )
-                        self.txtResponse.SetValue(string)                       
-                        exit(-1)
-                    with requests.Session() as S:
-                        Loginpage = S.get('https://m.vk.com/login')
-                        Loginsoup = BeautifulSoup(Loginpage.content,'lxml')
-                        Loginurl = Loginsoup.find('form')['action']
-                        p = S.post(Loginurl, data=payload, headers=headers)
-                        # NOW YOU ARE SUCCESSFULLY LOGGED IN
+                        self.txtResponse.SetValue(string)   
 
-                        if "/videos" in url:
-                            soup = BeautifulSoup(S.get(url).content, 'html.parser')
-                            linkers  = soup.findAll('a', attrs={'class': 'video_item_title', 'href': re.compile("^/video")})
-                            string = "Extracting all files into " + directory + " directory."
+                        for link in list(set(linkers)):
+                            ext = os.path.splitext((link.get('href')))[-1].lower()
+                            if ext in listImages:
+                                with open(os.path.join("./" + directory + "/photos/", os.path.basename(link.get('href'))),
+                                            'wb') as f:
+                                    response = requests.get("http:"+link.get('href'))
+                                    f.write(response.content)                                
+                                    cont_file+=1
+                            else:
+                                if ext in listVideos:
+                                    with open(os.path.join("./" + directory + "/videos/", os.path.basename(link.get('href'))),
+                                                'wb') as f:
+                                        response = requests.get("http:" + link.get('href'))
+                                        f.write(response.content)
+                                        cont_file+=1
+                    
+                    # User inserted a VK URL                   
+                    elif url.find('vk') != -1:
+                        try:                        
+                            with open('preferences.json') as json_file:
+                                data = json.load(json_file)
+                                for p in data['VkLogin']:
+                                    username = p['user']
+                                    password = p['pass']
+                        except:
+                            msg = 'Insert your VK Username\n'
+                            dlg = wx.TextEntryDialog(self, msg, 'VK Login')
+                            dlg.CentreOnParent()                
+                            if dlg.ShowModal() == wx.ID_OK:  
+                                username = dlg.GetValue()                       
+                            else:                    
+                                return 0     
+                            dlg.Destroy()   
+
+                            msg = 'Insert your VK Password\n'
+                            dlg = wx.TextEntryDialog(self, msg, 'VK Password')
+                            dlg.CentreOnParent()                
+                            if dlg.ShowModal() == wx.ID_OK:  
+                                password = dlg.GetValue()                       
+                            else:                    
+                                return 0     
+                            dlg.Destroy()    
+                            data = {}
+                            data['VkLogin'] = []
+                            data['VkLogin'].append({
+                                'user': username,
+                                'pass': password
+                            })
+                            with open('preferences.json', 'w') as outFile:
+                                json.dump(data, outFile)
+                        headers = {"Referer": "https://m.vk.com/login?role=fast&to=&s=1&m=1&email="+username
+                            , 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:50.0) Gecko/20100101 Firefox/50.0'}
+                        # Change email-username and password by your user in VK website
+                        payload = {'email': username, 'pass': password}
+                        # VK LOGIN COULD BE NECESARY IN CASE THE ACCOUNT BE PRIVATE
+                        if payload['email'] == 'EMAIL' or payload['pass'] == 'PASSWORD':
+                            string = "Error: Payload Parameters not configured in VK"
                             self.txtResponse.SetForegroundColour( wx.Colour( 255, 0, 0 ) )
-                            self.txtResponse.SetValue(string)   
-                            for linker in list(set(linkers)):
-                                
-                                page = S.get("https://vk.com"+linker.get('href'))
-                                content = page.content
+                            self.txtResponse.SetValue(string)                       
+                            exit(-1)
+                        with requests.Session() as S:
+                            Loginpage = S.get('https://m.vk.com/login')
+                            Loginsoup = BeautifulSoup(Loginpage.content,'lxml')
+                            Loginurl = Loginsoup.find('form')['action']
+                            p = S.post(Loginurl, data=payload, headers=headers)
+                            # NOW YOU ARE SUCCESSFULLY LOGGED IN
+
+                            if "/videos" in url:
+                                soup = BeautifulSoup(S.get(url).content, 'html.parser')
+                                linkers  = soup.findAll('a', attrs={'class': 'video_item_title', 'href': re.compile("^/video")})
+                                string = "Extracting all files into " + directory + " directory."
+                                self.txtResponse.SetForegroundColour( wx.Colour( 255, 0, 0 ) )
+                                self.txtResponse.SetValue(string)   
+                                for linker in list(set(linkers)):
+                                    
+                                    page = S.get("https://vk.com"+linker.get('href'))
+                                    content = page.content
+                                    link = content.decode('utf-8', "ignore")
+                                    
+                                    string = re.compile('<source src=\\\\"([^"]*)\\\\"')
+                                    urls = string.findall(link)
+                                    
+                                    # Extracting qualities found in video
+                                    for i in ['1080.mp4', '720.mp4', '360.mp4']:
+                                        for newUrl in urls:
+                                            if i in newUrl:
+                                                source = newUrl.replace('\\/', '/')
+                                                reg = re.compile(r'/([^/]*\.mp4)')
+                                                name = reg.findall(source)[0]
+                                                path = os.path.join("./" + directory + "/videos/")
+                                                fullpath = os.path.join(path, name)
+                                                urlretrieve(source, fullpath)
+                                                cont_file+=1
+
+                            elif "/video" in url:
+                                # converting part
+                                if "http://" in url:
+                                    url = url.replace("http", "https")
+                                if "z=" in url:
+                                    url = url.split("z=", 1)[-1]
+                                    url = url.split("%2F", 1)[0]
+                                    url = "https://vk.com/" + url
+                                page = urlopen(url)
+
+                                content = page.read()
                                 link = content.decode('utf-8', "ignore")
-                                
                                 string = re.compile('<source src=\\\\"([^"]*)\\\\"')
                                 urls = string.findall(link)
-                                
-                                # Extracting qualities found in video
+
                                 for i in ['1080.mp4', '720.mp4', '360.mp4']:
                                     for newUrl in urls:
                                         if i in newUrl:
@@ -251,65 +285,39 @@ class MainFrame ( wx.Frame ):
                                             urlretrieve(source, fullpath)
                                             cont_file+=1
 
-                        elif "/video" in url:
-                            # converting part
-                            if "http://" in url:
-                                url = url.replace("http", "https")
-                            if "z=" in url:
-                                url = url.split("z=", 1)[-1]
-                                url = url.split("%2F", 1)[0]
-                                url = "https://vk.com/" + url
-                            page = urlopen(url)
+                            elif "/photos" in url:
 
-                            content = page.read()
-                            link = content.decode('utf-8', "ignore")
-                            string = re.compile('<source src=\\\\"([^"]*)\\\\"')
-                            urls = string.findall(link)
-
-                            for i in ['1080.mp4', '720.mp4', '360.mp4']:
-                                for newUrl in urls:
-                                    if i in newUrl:
-                                        source = newUrl.replace('\\/', '/')
-                                        reg = re.compile(r'/([^/]*\.mp4)')
-                                        name = reg.findall(source)[0]
-                                        path = os.path.join("./" + directory + "/videos/")
-                                        fullpath = os.path.join(path, name)
-                                        urlretrieve(source, fullpath)
-                                        cont_file+=1
-
-                        elif "/photos" in url:
-
-                            soup = BeautifulSoup(S.get(url).content, 'html.parser')
-                            linkers = soup.findAll('a', attrs={'href': re.compile("^/photo")})
-                            
-                            for link in list(set(linkers)):
-                                #print(link.get('href'))
-                                pageFinal = S.get("https://vk.com/"+link.get('href'))                             
-                                soupInner = BeautifulSoup(pageFinal.content, 'html.parser')
-                                linkersInner = soupInner.findAll('img')      
-                                for linkInner in linkersInner:
-                                    ext = os.path.splitext((linkInner['src']))[-1].lower()
-                                    if ext in listImages and "https://sun9" in linkInner['src']:
-                                        
-                                        with open(os.path.join("./" + directory + "/photos/", os.path.basename(linkInner['src'])),
-                                                    'wb') as f:
-                                            response = requests.get(linkInner['src'])
-                                            f.write(response.content)                                
-                                            cont_file+=1                                        
+                                soup = BeautifulSoup(S.get(url).content, 'html.parser')
+                                linkers = soup.findAll('a', attrs={'href': re.compile("^/photo")})
                                 
-                        else:
-                            self.txtResponse.SetForegroundColour( wx.Colour( 255, 0, 0 ) )
-                            self.txtResponse.SetValue(str('Not valid url for VK'))        
-                # Website not found           
-                else:
-                    self.txtResponse.SetForegroundColour( wx.Colour( 255, 0, 0 ) )
-                    self.txtResponse.SetValue(str('Not found the website.'))
-                self.txtResponse.SetForegroundColour( wx.Colour(34,139,34) )
-                self.txtResponse.SetValue(str('Downloaded '+ str(cont_file)+ " files."))     
-                print('finished')                              
+                                for link in list(set(linkers)):
+                                    #print(link.get('href'))
+                                    pageFinal = S.get("https://vk.com/"+link.get('href'))                             
+                                    soupInner = BeautifulSoup(pageFinal.content, 'html.parser')
+                                    linkersInner = soupInner.findAll('img')      
+                                    for linkInner in linkersInner:
+                                        ext = os.path.splitext((linkInner['src']))[-1].lower()
+                                        if ext in listImages and "https://sun9" in linkInner['src']:
+                                            
+                                            with open(os.path.join("./" + directory + "/photos/", os.path.basename(linkInner['src'])),
+                                                        'wb') as f:
+                                                response = requests.get(linkInner['src'])
+                                                f.write(response.content)                                
+                                                cont_file+=1                                        
+                                    
+                            else:
+                                self.txtResponse.SetForegroundColour( wx.Colour( 255, 0, 0 ) )
+                                self.txtResponse.SetValue(str('Not valid url for VK'))        
+                    # Website not found           
+                    else:
+                        self.txtResponse.SetForegroundColour( wx.Colour( 255, 0, 0 ) )
+                        self.txtResponse.SetValue(str('Not found the website.'))
+                    self.txtResponse.SetForegroundColour( wx.Colour(34,139,34) )
+                    self.txtResponse.SetValue(str('Downloaded '+ str(cont_file)+ " files."))  
+                # User inserted a hispachan url                                             
             else:
                 self.txtResponse.SetForegroundColour( wx.Colour( 255, 0, 0 ) )
-                self.txtResponse.SetValue(str('Url is not correct'))
+                self.txtResponse.SetValue(str('Url must start by http or https.'))
 
 
     def checkUrl(self, url):    
@@ -323,20 +331,15 @@ class MainFrame ( wx.Frame ):
         dlg.SetWindowStyleFlag(wx.FRAME_FLOAT_ON_PARENT|wx.DEFAULT_DIALOG_STYLE)
         dlg.CentreOnParent()
         dlg.Show()
-
-        if  dlg.ShowModal() == wx.ID_OK:  
-            directory= dlg.GetValue()
-        if directory == '':
-            directory = 'default'
-                    
-        # Create directory structure photo and video
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-            os.makedirs("./" + directory + "/photos")
-            os.makedirs("./" + directory + "/videos")   
-         
+        event = 'pass'
+        directory = 'default'
+        if dlg.ShowModal() == wx.ID_OK:  
+            directory = dlg.GetValue()
+        else:
+            event = "close"
+                
         dlg.Destroy()
-        return directory
+        return directory, event
 
 
 if __name__ == '__main__':
